@@ -1,68 +1,72 @@
 package flight
 
 import (
-	"github.com/felixputera/cz4013-flight-info/server/database"
-	// "github.com/jinzhu/gorm"
 	"errors"
 	"time"
+
+	"github.com/felixputera/cz4013-flight-info/server/database"
 )
 
 // Flight type
 type Flight struct {
 	ID            string `gorm:"primary_key"`
-	From          string
-	To            string
-	Time          time.Time
-	AvailabeSeats int
-	Fare          int
+	From          string `gorm:"index"`
+	To            string `gorm:"index"`
+	Time          string
+	AvailabeSeats int32
+	Fare          float32
 }
 
 func Init() {
 	database.DB.AutoMigrate(&Flight{})
 }
 
-func FindFlights(from, to string) []Flight {
-	var flights []Flight
+func FindFlights(from, to string) []*Flight {
+	var flights []*Flight
 	database.DB.Find(&flights, Flight{From: from, To: to})
 	return flights
 }
 
-func GetFlight(id string) (Flight, error) {
-	var flight Flight
-	database.DB.Find(&flight, Flight{ID: id})
-	if flight == (Flight{}) {
-		return flight, errors.New("Flight not found")
+func GetFlight(id string) (*Flight, error) {
+	if id == "" {
+		return nil, errors.New("flight not found")
+	}
+	var flight *Flight
+	flight = new(Flight)
+	database.DB.Find(flight, Flight{ID: id})
+	if *flight == (Flight{}) {
+		return nil, errors.New("flight not found")
 	}
 	return flight, nil
 }
 
 // MakeReservation makes flight reservation and reduce the number of available seats
-func MakeReservation(id string, numTickets int) error {
+func MakeReservation(id string, seats int32) error {
 	flight, err := GetFlight(id)
 	if err != nil {
 		return err
 	}
-	if flight.AvailabeSeats < numTickets {
-		return errors.New("Flight doesn't have enough available seats")
+	if flight.AvailabeSeats < seats {
+		return errors.New("flight doesn't have enough available seats")
 	}
-	flight.AvailabeSeats -= numTickets
-	database.DB.Save(&flight)
+	flight.AvailabeSeats -= seats
+	database.DB.Save(flight)
 	return nil
 }
 
 func NewFlight(
 	id,
 	from,
-	to string,
-	time time.Time,
-	availableSeats,
-	fare int) (Flight, error) {
+	to,
+	time string,
+	availableSeats int32,
+	fare float32) (*Flight, error) {
 
-	if f, _ := GetFlight(id); f != (Flight{}) {
-		return Flight{}, errors.New("Duplicate flight number found")
+	if f, _ := GetFlight(id); *f != (Flight{}) {
+		return nil, errors.New("duplicate flight number found")
 	}
 
-	flight := Flight{
+	flight := &Flight{
 		ID:            id,
 		From:          from,
 		To:            to,
@@ -70,7 +74,44 @@ func NewFlight(
 		AvailabeSeats: availableSeats,
 		Fare:          fare,
 	}
-	database.DB.Create(&flight)
+	database.DB.Create(flight)
 
 	return flight, nil
+}
+
+func MonitorAvailableSeats(id string, durationMs int32) (<-chan int32, <-chan error) {
+	resChan := make(chan int32)
+	errChan := make(chan error)
+	var prevAvailableSeats int32
+
+	go func() {
+		defer close(resChan)
+		defer close(errChan)
+
+		timeout := time.After(time.Duration(durationMs) * time.Millisecond)
+		ticker := time.Tick(500 * time.Millisecond)
+
+		query := func() {
+			flight, err := GetFlight(id)
+			if err != nil {
+				errChan <- err
+			} else if flight.AvailabeSeats != prevAvailableSeats {
+				resChan <- flight.AvailabeSeats
+				prevAvailableSeats = flight.AvailabeSeats
+			}
+		}
+
+		query()
+
+		for {
+			select {
+			case <-timeout:
+				return
+			case <-ticker:
+				query()
+			}
+		}
+	}()
+
+	return resChan, errChan
 }

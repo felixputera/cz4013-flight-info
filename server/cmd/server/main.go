@@ -1,25 +1,37 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"log"
+
 	"github.com/felixputera/cz4013-flight-info/server/database"
 	"github.com/felixputera/cz4013-flight-info/server/flight"
-	"time"
+	"github.com/felixputera/cz4013-flight-info/server/rpc"
 )
 
 func main() {
+	var filterDuplicate bool
+	var port int
+
+	flag.BoolVar(&filterDuplicate, "filter", false, "filter duplicate request")
+	flag.IntVar(&port, "port", 12345, "server UDP listen port")
+
+	flag.Parse()
+
 	database.Init()
 	flight.Init()
 	defer database.Close()
 
-	_, err := flight.NewFlight("sq60", "singapore", "hongkong", time.Now(), 100, 100)
-	if err != nil {
-		fmt.Println(err)
-	}
+	transport, _ := rpc.NewServerUDPSocket(fmt.Sprintf(":%d", port), filterDuplicate)
+	processor := flight.NewFlightProcessor()
+	server := rpc.NewUdpServer4(processor,
+		transport,
+		rpc.NewTransportFactory(),
+		rpc.NewBinaryProtocolFactory(),
+	)
 
-	f, err := flight.GetFlight("sq60")
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(f.ID)
+	log.Printf("Starting server on port %d\n", port)
+	log.Println("Filtering duplicate:", filterDuplicate)
+	server.Serve()
 }

@@ -15,7 +15,7 @@ func Init() {
 	var err error
 	DB, err = gorm.Open("sqlite3", "database.sqlite3")
 	if err != nil {
-		panic("Failed to connect database")
+		panic("failed to connect database")
 	}
 }
 
