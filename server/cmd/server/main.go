@@ -24,8 +24,8 @@ func main() {
 	defer database.Close()
 
 	transport, _ := rpc.NewServerUDPSocket(fmt.Sprintf(":%d", port), filterDuplicate)
-	processor := flight.NewFlightProcessor()
-	server := rpc.NewUdpServer4(processor,
+	processor := flight.NewProcessor()
+	server := rpc.NewUdpServer(processor,
 		transport,
 		rpc.NewTransportFactory(),
 		rpc.NewBinaryProtocolFactory(),

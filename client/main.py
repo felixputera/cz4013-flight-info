@@ -10,10 +10,7 @@ from client.rpc.exception import ApplicationException
 
 parser = argparse.ArgumentParser(description="CZ4013 flight information system client")
 parser.add_argument(
-    "--outgoing_drop",
-    "-o",
-    type=float,
-    help="Probability of sent UDP packet dropped",
+    "--outgoing_drop", "-o", type=float, help="Probability of sent UDP packet dropped"
 )
 parser.add_argument(
     "--incoming_drop",
@@ -28,10 +25,7 @@ parser.add_argument(
     help="Timeout duration for waiting response from server",
 )
 parser.add_argument(
-    "--retry",
-    "-r",
-    type=int,
-    help="Number of timeout retries before aborting",
+    "--retry", "-r", type=int, help="Number of timeout retries before aborting"
 )
 
 
@@ -51,7 +45,7 @@ class FlightShell(cmd.Cmd):
             print("from:", flight.from_)
             print("to:", flight.to)
             print("time:", flight.time)
-            print("num available seats:", flight.availableSeats)
+            print("num available seats:", flight.available_seats)
             print("ticket fare:", flight.fare)
         except ApplicationException as e:
             print(str(e))
@@ -80,6 +74,32 @@ class FlightShell(cmd.Cmd):
                 print("available seats:", seats)
             except ApplicationException as e:
                 print(str(e))
+
+    def do_new(self, arg):
+        "create new flight entry: ID FROM TO TIME AVAILABLE-SEATS FARE"
+        try:
+            self.client.new_flight(*parse(arg))
+            print("ok")
+        except ApplicationException as e:
+            print(str(e))
+
+    def do_find_flights(self, arg):
+        "find flights: FROM TO"
+        try:
+            flight_ids = self.client.find_flights(*parse(arg))
+            for flight_id in flight_ids:
+                print(flight_id)
+        except ApplicationException as e:
+            print(str(e))
+
+    def do_find_destinations(self, arg):
+        "find destinations: FROM"
+        try:
+            destinations = self.client.find_destinations(*parse(arg))
+            for destination in destinations:
+                print(destination)
+        except ApplicationException as e:
+            print(str(e))
 
 
 def parse(arg):

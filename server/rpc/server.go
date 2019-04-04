@@ -21,72 +21,29 @@ type UdpServer struct {
 	serverTransport        ServerTransport
 }
 
-func NewUdpServer2(processor Processor, serverTransport ServerTransport) *UdpServer {
-	return NewUdpServerFactory2(NewProcessorFactory(processor), serverTransport)
-}
-
-func NewUdpServer4(processor Processor,
+func NewUdpServer(processor Processor,
 	serverTransport ServerTransport,
 	transportFactory TransportFactory,
 	protocolFactory ProtocolFactory) *UdpServer {
-	return NewUdpServerFactory4(NewProcessorFactory(processor),
+	return NewUdpServerFactory(NewProcessorFactory(processor),
 		serverTransport,
 		transportFactory,
 		protocolFactory,
 	)
 }
 
-func NewUdpServer6(processor Processor,
-	serverTransport ServerTransport,
-	inputTransportFactory TransportFactory,
-	outputTransportFactory TransportFactory,
-	inputProtocolFactory ProtocolFactory,
-	outputProtocolFactory ProtocolFactory) *UdpServer {
-	return NewUdpServerFactory6(NewProcessorFactory(processor),
-		serverTransport,
-		inputTransportFactory,
-		outputTransportFactory,
-		inputProtocolFactory,
-		outputProtocolFactory,
-	)
-}
-
-func NewUdpServerFactory2(processorFactory ProcessorFactory, serverTransport ServerTransport) *UdpServer {
-	return NewUdpServerFactory6(processorFactory,
-		serverTransport,
-		NewTransportFactory(),
-		NewTransportFactory(),
-		NewBinaryProtocolFactory(),
-		NewBinaryProtocolFactory(),
-	)
-}
-
-func NewUdpServerFactory4(processorFactory ProcessorFactory,
+func NewUdpServerFactory(processorFactory ProcessorFactory,
 	serverTransport ServerTransport,
 	transportFactory TransportFactory,
 	protocolFactory ProtocolFactory) *UdpServer {
-	return NewUdpServerFactory6(processorFactory,
-		serverTransport,
-		transportFactory,
-		transportFactory,
-		protocolFactory,
-		protocolFactory,
-	)
-}
 
-func NewUdpServerFactory6(processorFactory ProcessorFactory,
-	serverTransport ServerTransport,
-	inputTransportFactory TransportFactory,
-	outputTransportFactory TransportFactory,
-	inputProtocolFactory ProtocolFactory,
-	outputProtocolFactory ProtocolFactory) *UdpServer {
 	return &UdpServer{
 		processorFactory:       processorFactory,
 		serverTransport:        serverTransport,
-		inputTransportFactory:  inputTransportFactory,
-		outputTransportFactory: outputTransportFactory,
-		inputProtocolFactory:   inputProtocolFactory,
-		outputProtocolFactory:  outputProtocolFactory,
+		inputTransportFactory:  transportFactory,
+		outputTransportFactory: transportFactory,
+		inputProtocolFactory:   protocolFactory,
+		outputProtocolFactory:  protocolFactory,
 	}
 }
 

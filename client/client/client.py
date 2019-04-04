@@ -8,7 +8,7 @@ class Flight(object):
         self.from_ = ""  # from is a keyword in python
         self.to = ""
         self.time = ""
-        self.availableSeats = 0
+        self.available_seats = 0
         self.fare = 0.0
 
     def read(self, iprot):
@@ -25,7 +25,7 @@ class Flight(object):
             elif fid == 4 and ftype == Type.STRING:
                 self.time = iprot.read_string()
             elif fid == 5 and ftype == Type.I32:
-                self.availableSeats = iprot.read_i32()
+                self.available_seats = iprot.read_i32()
             elif fid == 6 and ftype == Type.FLOAT:
                 self.fare = iprot.read_float()
             iprot.read_field_end()
@@ -103,6 +103,107 @@ class MonitorSeatsResult(object):
                 break
             if fid == 1 and ftype == Type.I32:
                 self.seats = iprot.read_i32()
+            iprot.read_field_end()
+
+
+class NewFlightArgs(object):
+    def __init__(self):
+        self.flightid = None
+        self.from_ = None
+        self.to = None
+        self.time = None
+        self.available_seats = None
+        self.fare = None
+
+    def write(self, oprot):
+        if self.flightid is not None:
+            oprot.write_field_begin("id", Type.STRING, 1)
+            oprot.write_string(self.flightid)
+            oprot.write_field_end()
+        if self.from_ is not None:
+            oprot.write_field_begin("from", Type.STRING, 2)
+            oprot.write_string(self.from_)
+            oprot.write_field_end()
+        if self.to is not None:
+            oprot.write_field_begin("to", Type.STRING, 3)
+            oprot.write_string(self.to)
+            oprot.write_field_end()
+        if self.time is not None:
+            oprot.write_field_begin("time", Type.STRING, 4)
+            oprot.write_string(self.time)
+            oprot.write_field_end()
+        if self.available_seats is not None:
+            oprot.write_field_begin("availableSeats", Type.I32, 5)
+            oprot.write_i32(self.available_seats)
+            oprot.write_field_end()
+        if self.fare is not None:
+            oprot.write_field_begin("fare", Type.FLOAT, 6)
+            oprot.write_float(self.fare)
+            oprot.write_field_end()
+        oprot.write_field_stop()
+
+
+class FindFlightsArgs(object):
+    def __init__(self):
+        self.from_ = None
+        self.to = None
+
+    def write(self, oprot):
+        if self.from_ is not None:
+            oprot.write_field_begin("from", Type.STRING, 1)
+            oprot.write_string(self.from_)
+            oprot.write_field_end()
+        if self.to is not None:
+            oprot.write_field_begin("to", Type.STRING, 2)
+            oprot.write_string(self.to)
+            oprot.write_field_end()
+        oprot.write_field_stop()
+
+
+class FindFlightsResult(object):
+    def __init__(self):
+        self.flight_ids = None
+
+    def read(self, iprot):
+        while True:
+            _, ftype, fid = iprot.read_field_begin()
+            if ftype == Type.STOP:
+                break
+            if fid == 1 and ftype == Type.LIST:
+                self.flight_ids = []
+                _, size = iprot.read_list_begin()
+                for _ in range(size):
+                    self.flight_ids.append(iprot.read_string())
+                iprot.read_list_end()
+            iprot.read_field_end()
+
+class FindDestinationsArgs(object):
+    def __init__(self):
+        self.from_ = None
+
+    def write(self, oprot):
+        if self.from_ is not None:
+            oprot.write_field_begin("from", Type.STRING, 1)
+            oprot.write_string(self.from_)
+            oprot.write_field_end()
+        oprot.write_field_stop()
+
+
+class FindDestinationsResult(object):
+    def __init__(self):
+        self.destinations = None
+
+    def read(self, iprot):
+        while True:
+            _, ftype, fid = iprot.read_field_begin()
+            if ftype == Type.STOP:
+                break
+            if fid == 1 and ftype == Type.LIST:
+                self.destinations = []
+                _, size = iprot.read_list_begin()
+                for _ in range(size):
+                    self.destinations.append(iprot.read_string())
+                iprot.read_list_end()
             iprot.read_field_end()
 
 
@@ -207,3 +308,95 @@ class Client(object):
         self.iprot.trans.listen = False
 
         return result.seats
+
+    def new_flight(self, flightid, from_, to, time, available_seats, fare):
+        self.send_new_flight(flightid, from_, to, time, available_seats, fare)
+        self.recv_new_flight()
+
+    def send_new_flight(self, flightid, from_, to, time, available_seats, fare):
+        flightid = str(flightid)
+        from_ = str(from_)
+        to = str(to)
+        time = str(time)
+        available_seats = int(available_seats)
+        fare = float(fare)
+
+        self.oprot.write_message_begin("newFlight", MessageType.CALL, self.seqid)
+        args = NewFlightArgs()
+        args.flightid = flightid
+        args.from_ = from_
+        args.to = to
+        args.time = time
+        args.available_seats = available_seats
+        args.fare = fare
+        args.write(self.oprot)
+        self.oprot.write_message_end()
+        self.oprot.trans.flush()
+
+    def recv_new_flight(self):
+        _, mtype, _ = self.iprot.read_message_begin()
+        if mtype == MessageType.EXCEPTION:
+            e = ApplicationException()
+            e.read(self.iprot)
+            self.iprot.read_message_end()
+            raise e
+        self.iprot.read_field_begin()  # for reading STOP
+        self.iprot.read_message_end()
+
+    def find_flights(self, from_, to):
+        self.send_find_flights(from_, to)
+        return self.recv_find_flights()
+
+    def send_find_flights(self, from_, to):
+        from_ = str(from_)
+        to = str(to)
+
+        self.oprot.write_message_begin("findFlights", MessageType.CALL, self.seqid)
+        args = FindFlightsArgs()
+        args.from_ = from_
+        args.to = to
+        args.write(self.oprot)
+        self.oprot.write_message_end()
+        self.oprot.trans.flush()
+
+    def recv_find_flights(self):
+        _, mtype, _ = self.iprot.read_message_begin()
+        if mtype == MessageType.EXCEPTION:
+            e = ApplicationException()
+            e.read(self.iprot)
+            self.iprot.read_message_end()
+            raise e
+
+        result = FindFlightsResult()
+        result.read(self.iprot)
+        self.iprot.read_message_end()
+
+        return result.flight_ids
+
+    def find_destinations(self, from_):
+        self.send_find_destinations(from_)
+        return self.recv_find_destinations()
+
+    def send_find_destinations(self, from_):
+        from_ = str(from_)
+
+        self.oprot.write_message_begin("findDestinations", MessageType.CALL, self.seqid)
+        args = FindDestinationsArgs()
+        args.from_ = from_
+        args.write(self.oprot)
+        self.oprot.write_message_end()
+        self.oprot.trans.flush()
+
+    def recv_find_destinations(self):
+        _, mtype, _ = self.iprot.read_message_begin()
+        if mtype == MessageType.EXCEPTION:
+            e = ApplicationException()
+            e.read(self.iprot)
+            self.iprot.read_message_end()
+            raise e
+
+        result = FindDestinationsResult()
+        result.read(self.iprot)
+        self.iprot.read_message_end()
+
+        return result.destinations

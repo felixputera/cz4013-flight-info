@@ -9,21 +9,24 @@ import (
 	"github.com/felixputera/cz4013-flight-info/server/rpc"
 )
 
-type FlightProcessor struct {
+type Processor struct {
 	methodMap map[string]rpc.ProcessorFunction
 }
 
-func NewFlightProcessor() *FlightProcessor {
-	return &FlightProcessor{
+func NewProcessor() *Processor {
+	return &Processor{
 		methodMap: map[string]rpc.ProcessorFunction{
-			"getFlight":    &getFlightProcessor{},
-			"reserve":      &reserveProcessor{},
-			"monitorSeats": &monitorSeatsProcessor{},
+			"getFlight":        &getFlightProcessor{},
+			"reserve":          &reserveProcessor{},
+			"monitorSeats":     &monitorSeatsProcessor{},
+			"findFlights":      &findFlightsProcessor{},
+			"newFlight":        &newFlightProcessor{},
+			"findDestinations": &findDestinationsProcessor{},
 		},
 	}
 }
 
-func (p *FlightProcessor) Process(ctx context.Context, iprot, oprot rpc.Protocol) (bool, error) {
+func (p *Processor) Process(ctx context.Context, iprot, oprot rpc.Protocol) (bool, error) {
 	name, _, seqID, err := iprot.ReadMessageBegin()
 	if err != nil {
 		return false, err
@@ -232,12 +235,6 @@ func (a *reserveArgs) read(iprot rpc.Protocol) error {
 	return nil
 }
 
-type reserveResult struct{}
-
-func (r *reserveResult) write(oprot rpc.Protocol) error {
-	return oprot.WriteFieldStop()
-}
-
 func (p *reserveProcessor) Process(ctx context.Context, seqID int32, iprot, oprot rpc.Protocol) (bool, error) {
 	args := &reserveArgs{}
 	if err := args.read(iprot); err != nil {
@@ -260,7 +257,7 @@ func (p *reserveProcessor) Process(ctx context.Context, seqID int32, iprot, opro
 		return true, err
 	}
 
-	res := &reserveResult{}
+	res := &voidResult{}
 	if err := oprot.WriteMessageBegin("reserve", rpc.Reply, seqID); err != nil {
 		return false, err
 	}
@@ -391,6 +388,341 @@ func (p *monitorSeatsProcessor) Process(ctx context.Context, seqID int32, iprot,
 			}
 		}
 	}(seqID)
+
+	return true, nil
+}
+
+type newFlightProcessor struct{}
+
+type newFlightArgs struct {
+	id             string
+	from           string
+	to             string
+	time           string
+	availableSeats int32
+	fare           float32
+}
+
+func (a *newFlightArgs) read(iprot rpc.Protocol) error {
+	for {
+		_, fieldType, fieldID, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return rpc.PrependError(fmt.Sprintf("%T field %d read error: ", a, fieldID), err)
+		}
+		if fieldType == rpc.Stop {
+			break
+		}
+		switch fieldID {
+		case 1:
+			if fieldType == rpc.String {
+				a.id, err = iprot.ReadString()
+				if err != nil {
+					return rpc.PrependError("failed reading field 1 content", err)
+				}
+			} else {
+				return errors.New("field 1 is not string type")
+			}
+		case 2:
+			if fieldType == rpc.String {
+				a.from, err = iprot.ReadString()
+				if err != nil {
+					return rpc.PrependError("failed reading field 2 content", err)
+				}
+			} else {
+				return errors.New("field 2 is not string type")
+			}
+		case 3:
+			if fieldType == rpc.String {
+				a.to, err = iprot.ReadString()
+				if err != nil {
+					return rpc.PrependError("failed reading field 3 content", err)
+				}
+			} else {
+				return errors.New("field 3 is not string type")
+			}
+		case 4:
+			if fieldType == rpc.String {
+				a.time, err = iprot.ReadString()
+				if err != nil {
+					return rpc.PrependError("failed reading field 4 content", err)
+				}
+			} else {
+				return errors.New("field 4 is not string type")
+			}
+		case 5:
+			if fieldType == rpc.I32 {
+				a.availableSeats, err = iprot.ReadI32()
+				if err != nil {
+					return rpc.PrependError("failed reading field 5 content", err)
+				}
+			} else {
+				return errors.New("field 5 is not i32 type")
+			}
+		case 6:
+			if fieldType == rpc.Float {
+				a.fare, err = iprot.ReadFloat()
+				if err != nil {
+					return rpc.PrependError("failed reading field 6 content", err)
+				}
+			} else {
+				return errors.New("field 6 is not float type")
+			}
+		}
+
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type voidResult struct{}
+
+func (r *voidResult) write(oprot rpc.Protocol) error {
+	return oprot.WriteFieldStop()
+}
+
+func (p *newFlightProcessor) Process(ctx context.Context, seqID int32, iprot, oprot rpc.Protocol) (bool, error) {
+	args := &newFlightArgs{}
+	if err := args.read(iprot); err != nil {
+		return false, err
+	}
+	if err := iprot.ReadMessageEnd(); err != nil {
+		return false, err
+	}
+
+	_, err := NewFlight(args.id, args.from, args.to, args.time, args.availableSeats, args.fare)
+	if err != nil {
+		oprot.WriteMessageBegin("newFlight", rpc.Exception, seqID)
+		appErr := rpc.NewApplicationException(rpc.InternalErrorID, "internal server error processing reserve: "+err.Error())
+		appErr.Write(oprot)
+		err = oprot.WriteMessageEnd()
+		if err != nil {
+			return false, err
+		}
+		oprot.Flush()
+		return true, err
+	}
+
+	res := &voidResult{}
+	if err := oprot.WriteMessageBegin("newFlight", rpc.Reply, seqID); err != nil {
+		return false, err
+	}
+	if err := res.write(oprot); err != nil {
+		return false, err
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return false, err
+	}
+	oprot.Flush()
+
+	return true, nil
+}
+
+type findDestinationsProcessor struct{}
+
+type findDestinationsArgs struct {
+	from string
+}
+
+func (a *findDestinationsArgs) read(iprot rpc.Protocol) error {
+	for {
+		_, fieldType, fieldID, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return rpc.PrependError(fmt.Sprintf("%T field %d read error: ", a, fieldID), err)
+		}
+		if fieldType == rpc.Stop {
+			break
+		}
+		switch fieldID {
+		case 1:
+			if fieldType == rpc.String {
+				a.from, err = iprot.ReadString()
+				if err != nil {
+					return rpc.PrependError("failed reading field 1 content", err)
+				}
+			} else {
+				return errors.New("field 1 is not string type")
+			}
+		}
+
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type findDestinationsResult struct {
+	destinations []string
+}
+
+func (r *findDestinationsResult) write(oprot rpc.Protocol) (err error) {
+	if err = oprot.WriteFieldBegin("destinations", rpc.List, 1); err != nil {
+		return
+	}
+	if err = oprot.WriteListBegin(rpc.String, len(r.destinations)); err != nil {
+		return
+	}
+	for _, destination := range r.destinations {
+		if err = oprot.WriteString(destination); err != nil {
+			return
+		}
+	}
+	if err = oprot.WriteListEnd(); err != nil {
+		return
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		return
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		return
+	}
+	return nil
+}
+
+func (p *findDestinationsProcessor) Process(ctx context.Context, seqID int32, iprot, oprot rpc.Protocol) (bool, error) {
+	args := &findDestinationsArgs{}
+	if err := args.read(iprot); err != nil {
+		return false, err
+	}
+	if err := iprot.ReadMessageEnd(); err != nil {
+		return false, err
+	}
+
+	destinations, err := FindDestinationsFrom(args.from)
+	if err != nil {
+		oprot.WriteMessageBegin("findDestinationss", rpc.Exception, seqID)
+		appErr := rpc.NewApplicationException(rpc.InternalErrorID, "internal server error processing reserve: "+err.Error())
+		appErr.Write(oprot)
+		err = oprot.WriteMessageEnd()
+		if err != nil {
+			return false, err
+		}
+		oprot.Flush()
+		return true, err
+	}
+
+	res := &findDestinationsResult{destinations: destinations}
+	if err = oprot.WriteMessageBegin("findDestinationss", rpc.Reply, seqID); err != nil {
+		return false, err
+	}
+	if err = res.write(oprot); err != nil {
+		return false, err
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return false, err
+	}
+	oprot.Flush()
+
+	return true, nil
+}
+
+type findFlightsProcessor struct{}
+
+type findFlightsArgs struct {
+	from string
+	to   string
+}
+
+func (a *findFlightsArgs) read(iprot rpc.Protocol) error {
+	for {
+		_, fieldType, fieldID, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return rpc.PrependError(fmt.Sprintf("%T field %d read error: ", a, fieldID), err)
+		}
+		if fieldType == rpc.Stop {
+			break
+		}
+		switch fieldID {
+		case 1:
+			if fieldType == rpc.String {
+				a.from, err = iprot.ReadString()
+				if err != nil {
+					return rpc.PrependError("failed reading field 1 content", err)
+				}
+			} else {
+				return errors.New("field 1 is not string type")
+			}
+		case 2:
+			if fieldType == rpc.String {
+				a.to, err = iprot.ReadString()
+				if err != nil {
+					return rpc.PrependError("failed reading field 2 content", err)
+				}
+			} else {
+				return errors.New("field 2 is not string type")
+			}
+		}
+
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type findFlightsResult struct {
+	flightIDs []string
+}
+
+func (r *findFlightsResult) write(oprot rpc.Protocol) (err error) {
+	if err = oprot.WriteFieldBegin("flightIDs", rpc.List, 1); err != nil {
+		return
+	}
+	if err = oprot.WriteListBegin(rpc.String, len(r.flightIDs)); err != nil {
+		return
+	}
+	for _, flightID := range r.flightIDs {
+		if err = oprot.WriteString(flightID); err != nil {
+			return
+		}
+	}
+	if err = oprot.WriteListEnd(); err != nil {
+		return
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		return
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		return
+	}
+	return nil
+}
+
+func (p *findFlightsProcessor) Process(ctx context.Context, seqID int32, iprot, oprot rpc.Protocol) (bool, error) {
+	args := &findFlightsArgs{}
+	if err := args.read(iprot); err != nil {
+		return false, err
+	}
+	if err := iprot.ReadMessageEnd(); err != nil {
+		return false, err
+	}
+
+	flightIDs, err := FindFlightIDsFromTo(args.from, args.to)
+	if err != nil {
+		oprot.WriteMessageBegin("findFlights", rpc.Exception, seqID)
+		appErr := rpc.NewApplicationException(rpc.InternalErrorID, "internal server error processing reserve: "+err.Error())
+		appErr.Write(oprot)
+		err = oprot.WriteMessageEnd()
+		if err != nil {
+			return false, err
+		}
+		oprot.Flush()
+		return true, err
+	}
+
+	res := &findFlightsResult{flightIDs: flightIDs}
+	if err = oprot.WriteMessageBegin("findFlights", rpc.Reply, seqID); err != nil {
+		return false, err
+	}
+	if err = res.write(oprot); err != nil {
+		return false, err
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return false, err
+	}
+	oprot.Flush()
 
 	return true, nil
 }

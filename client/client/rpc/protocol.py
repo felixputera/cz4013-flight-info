@@ -82,6 +82,12 @@ class ProtocolBase(object):
 
     def read_binary(self):
         raise NotImplementedError
+    
+    def read_list_begin(self):
+        raise NotImplementedError
+
+    def read_list_end(self):
+        raise NotImplementedError
 
 
 class BinaryProtocol(ProtocolBase):
@@ -158,6 +164,14 @@ class BinaryProtocol(ProtocolBase):
         return (None, typeid, fid)
 
     def read_field_end(self):
+        pass
+    
+    def read_list_begin(self):
+        etype = self.read_byte()
+        size = self.read_i32()
+        return (etype, size)
+
+    def read_list_end(self):
         pass
 
     def read_bool(self):

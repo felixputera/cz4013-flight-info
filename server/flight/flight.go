@@ -21,10 +21,20 @@ func Init() {
 	database.DB.AutoMigrate(&Flight{})
 }
 
-func FindFlights(from, to string) []*Flight {
+func FindFlightIDsFromTo(from, to string) ([]string, error) {
 	var flights []*Flight
+	var flightIDs []string
+
 	database.DB.Find(&flights, Flight{From: from, To: to})
-	return flights
+	if len(flights) == 0 {
+		return flightIDs, errors.New("no flight found")
+	}
+
+	for _, flight := range flights {
+		flightIDs = append(flightIDs, flight.ID)
+	}
+
+	return flightIDs, nil
 }
 
 func GetFlight(id string) (*Flight, error) {
@@ -62,7 +72,7 @@ func NewFlight(
 	availableSeats int32,
 	fare float32) (*Flight, error) {
 
-	if f, _ := GetFlight(id); *f != (Flight{}) {
+	if f, _ := GetFlight(id); f != nil {
 		return nil, errors.New("duplicate flight number found")
 	}
 
@@ -114,4 +124,24 @@ func MonitorAvailableSeats(id string, durationMs int32) (<-chan int32, <-chan er
 	}()
 
 	return resChan, errChan
+}
+
+func FindDestinationsFrom(from string) ([]string, error) {
+	var destinationSet = make(map[string]bool)
+	var destinations []string
+	var flights []*Flight
+
+	database.DB.Find(&flights, Flight{From: from})
+	if len(flights) == 0 {
+		return destinations, errors.New("no flight found")
+	}
+
+	for _, flight := range flights {
+		destinationSet[flight.To] = true
+	}
+	for from := range destinationSet {
+		destinations = append(destinations, from)
+	}
+
+	return destinations, nil
 }
